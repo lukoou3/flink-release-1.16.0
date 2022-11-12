@@ -32,6 +32,20 @@ import java.util.Collections;
 import java.util.Properties;
 
 /**
+ * Flink Sink将数据生成到Kafka主题中。接收器支持DeliveryGuarantee描述的所有交付保证(至少一次,精确一次)。
+ *
+ * DeliveryGuarantee.NONE不提供任何保证：如果Kafka代理出现问题，消息可能会丢失，如果Flink失败，消息可能重复。
+ *
+ * DeliveryGuarantee.AT_LEAST_ONCE接收器将等待Kafka缓冲区中的所有未完成记录被Kafka生产者在检查点上确认。
+ * 如果Kafka brokers出现任何问题，则不会丢失任何消息，但当Flink重新启动时，消息可能会重复。
+ *
+ * DeliveryGuarantee.EXACTLY_ONCE：在这种模式下，KafkaSink将在一个Kafka事务中写入将在检查点提交给Kafka的所有消息。
+ * 因此，如果使用者只读取提交的数据（请参阅Kafka使用者配置隔离级别），那么在Flink重新启动时不会看到重复数据。
+ * 但是，这会有效地延迟记录写入，直到写入检查点，因此请相应地调整检查点持续时间。
+ * 请确保在同一Kafka集群上运行的应用程序中使用唯一的transactionalIdPrefix，以便多个运行的作业不会干扰它们的事务！
+ * 此外，强烈建议调整Kafka事务超时（链接）>>最大检查点持续时间+最大重新启动持续时间，否则当Kafka使未提交的事务过期时，可能会发生数据丢失。
+ *
+ *
  * Flink Sink to produce data into a Kafka topic. The sink supports all delivery guarantees
  * described by {@link DeliveryGuarantee}.
  * <li>{@link DeliveryGuarantee#NONE} does not provide any guarantees: messages may be lost in case

@@ -103,12 +103,13 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
         this.deserializer = deserializer;
         this.handover = new Handover();
 
+        // 这个线程去拉取消费
         this.consumerThread =
                 new KafkaConsumerThread(
                         LOG,
                         handover,
                         kafkaProperties,
-                        unassignedPartitionsQueue,
+                        unassignedPartitionsQueue, //每个分区消费的位置
                         getFetcherName() + " for " + taskNameWithSubtasks,
                         pollTimeout,
                         useMetrics,
@@ -176,8 +177,10 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
             throws Exception {
 
         for (ConsumerRecord<byte[], byte[]> record : partitionRecords) {
+            // 这里就是把元素放到kafkaCollector的records中
             deserializer.deserialize(record, kafkaCollector);
 
+            // 发送record和watermark, 同时更新offset
             // emit the actual records. this also updates offset state atomically and emits
             // watermarks
             emitRecordsWithTimestamps(
@@ -215,6 +218,10 @@ public class KafkaFetcher<T> extends AbstractFetcher<T, TopicPartition> {
             if (lastProcessedOffset != null) {
                 checkState(lastProcessedOffset >= 0, "Illegal offset value to commit");
 
+                /**
+                 * 通过KafkaConsumer提交offset需要提交最近处理的offset+1
+                 * 这不会影响flink checkpoint 保存state
+                 */
                 // committed offsets through the KafkaConsumer need to be 1 more than the last
                 // processed offset.
                 // This does not affect Flink's checkpoints/saved state.

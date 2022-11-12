@@ -37,6 +37,11 @@ public class OffsetCommitModes {
             boolean enableCommitOnCheckpoint,
             boolean enableCheckpointing) {
 
+        /**
+         * 是否开启checkpoint
+         *      开启checkpoint：checkpoint完成时提交offset，如果没开启enableCommitOnCheckpoint就禁用提交(这个一般也没人会设置)
+         *      没开启checkpoint：是否配置启用enable.auto.commit，启用则自动提交，否则禁用提交
+         */
         if (enableCheckpointing) {
             // if checkpointing is enabled, the mode depends only on whether committing on
             // checkpoints is enabled

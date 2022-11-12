@@ -233,6 +233,7 @@ public class KafkaConsumerThread<T> extends Thread {
                 }
 
                 try {
+                    // 从分区指定offset消费
                     if (hasAssignedPartitions) {
                         newPartitions = unassignedPartitionsQueue.pollBatch();
                     } else {

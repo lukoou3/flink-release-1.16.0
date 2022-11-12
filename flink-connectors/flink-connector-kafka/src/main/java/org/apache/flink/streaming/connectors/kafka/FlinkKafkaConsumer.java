@@ -52,6 +52,12 @@ import static org.apache.flink.util.PropertiesUtil.getBoolean;
 import static org.apache.flink.util.PropertiesUtil.getLong;
 
 /**
+ * FlinkKafkaConsumer是一个能从Kafka并行读取数据的流数据源。KafkaConsumer可以在多个并行实例中运行，每个实例都将从一个或多个Kafka分区读取数据。
+ *
+ * FlinkKafkaConsumer参与检查点，并保证在故障期间不会丢失任何数据，并且计算“只处理一次”元素。（注：这些保证假设Kafka本身不会丢失任何数据。）
+ *
+ * 请注意，Flink在内部对偏移量进行快照，作为其分布式检查点的一部分。offsets提交到Kafka仅仅是使从Kafka能监控消费的进度。每次从状态恢复是读取状态中的offsets。
+ *
  * The Flink Kafka Consumer is a streaming data source that pulls a parallel data stream from Apache
  * Kafka. The consumer can run in multiple parallel instances, each of which will pull data from one
  * or more Kafka partitions.
@@ -210,6 +216,12 @@ public class FlinkKafkaConsumer<T> extends FlinkKafkaConsumerBase<T> {
             KafkaDeserializationSchema<T> deserializer,
             Properties props) {
 
+        /**
+         * 主构造函数，open方法在父类FlinkKafkaConsumerBase中
+         * @see FlinkKafkaConsumerBase#open
+         * 调用父类FlinkKafkaConsumerBase
+         * discoveryIntervalMillis: 自动分区发现
+         */
         super(
                 topics,
                 subscriptionPattern,
@@ -221,6 +233,8 @@ public class FlinkKafkaConsumer<T> extends FlinkKafkaConsumerBase<T> {
                 !getBoolean(props, KEY_DISABLE_METRICS, false));
 
         this.properties = props;
+        // 这里统一使用org.apache.kafka.common.serialization.ByteArrayDeserializer作为kafka的反序列化器
+        // 然后用再用flink的KafkaDeserializationSchema处理
         setDeserializer(this.properties);
 
         // configure the polling timeout
@@ -228,6 +242,7 @@ public class FlinkKafkaConsumer<T> extends FlinkKafkaConsumerBase<T> {
             if (properties.containsKey(KEY_POLL_TIMEOUT)) {
                 this.pollTimeout = Long.parseLong(properties.getProperty(KEY_POLL_TIMEOUT));
             } else {
+                // 默认100
                 this.pollTimeout = DEFAULT_POLL_TIMEOUT;
             }
         } catch (Exception e) {

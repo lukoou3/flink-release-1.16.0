@@ -452,6 +452,9 @@ public class HBaseSerde {
         }
     }
 
+    /**
+     * 从这里就可以看出来flink sql内部使用的类型
+     */
     private static FieldDecoder createFieldDecoder(LogicalType fieldType) {
         // ordered by type root definition
         switch (fieldType.getTypeRoot()) {
