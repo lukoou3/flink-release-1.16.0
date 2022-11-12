@@ -177,6 +177,9 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
+ * TaskExecutor实现。TaskExecutor负责执行多个Task。
+ * TaskExecutor rpc提供的接口在TaskExecutorGateway，里面有提交task等方法接口
+ *
  * TaskExecutor implementation. The task executor is responsible for the execution of multiple
  * {@link Task}.
  */
@@ -577,11 +580,15 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
     // Task lifecycle RPCs
     // ----------------------------------------------------------------------
 
+    /**
+     * JobManager给这个TaskManager提交Task
+     */
     @Override
     public CompletableFuture<Acknowledge> submitTask(
             TaskDeploymentDescriptor tdd, JobMasterId jobMasterId, Time timeout) {
 
         try {
+            // 做些校验，验证JobManager中是否有这个job等
             final JobID jobId = tdd.getJobId();
             final ExecutionAttemptID executionAttemptID = tdd.getExecutionAttemptId();
 
@@ -599,6 +606,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                                         return new TaskSubmissionException(message);
                                     });
 
+            // 还是校验
             if (!Objects.equals(jobManagerConnection.getJobMasterId(), jobMasterId)) {
                 final String message =
                         "Rejecting the task submission because the job manager leader id "
@@ -611,6 +619,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                 throw new TaskSubmissionException(message);
             }
 
+            // 校验Slot申请了，可用
             if (!taskSlotTable.tryMarkSlotActive(jobId, tdd.getAllocationId())) {
                 final String message =
                         "No task slot allocated for job ID "
@@ -630,9 +639,10 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                         "Could not re-integrate offloaded TaskDeploymentDescriptor data.", e);
             }
 
+            // 反序列化之前task020序列化的信息
             // deserialize the pre-serialized information
-            final JobInformation jobInformation;
-            final TaskInformation taskInformation;
+            final JobInformation jobInformation; // job信息
+            final TaskInformation taskInformation; // task信息
             try {
                 jobInformation =
                         tdd.getSerializedJobInformation()
@@ -710,6 +720,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
             final JobManagerTaskRestore taskRestore = tdd.getTaskRestore();
 
+            // task状态管理
             final TaskStateManager taskStateManager =
                     new TaskStateManagerImpl(
                             jobId,
@@ -727,6 +738,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                 throw new TaskSubmissionException("Could not submit task.", e);
             }
 
+            // task
             Task task =
                     new Task(
                             jobInformation,
@@ -772,10 +784,17 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             }
 
             if (taskAdded) {
+                /**
+                 * 启动task, 启动task的executingThread线程(target=Task.this), Task实现了Runnable
+                 * 也就是启动task线程，运行Task的run方法，run方法调用doRun方法
+                 * 总结起来就是启动task线程，运行Task的doRun方法
+                 * @see Task#doRun()
+                 */
                 task.startTaskThread();
 
                 setupResultPartitionBookkeeping(
                         tdd.getJobId(), tdd.getProducedPartitions(), task.getTerminationFuture());
+                // 回复jobManage task启动完成
                 return CompletableFuture.completedFuture(Acknowledge.get());
             } else {
                 final String message =
