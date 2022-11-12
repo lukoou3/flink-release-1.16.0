@@ -180,8 +180,8 @@ public class StreamGraphGenerator {
 
     @SuppressWarnings("rawtypes")
     private static final Map<
-                    Class<? extends Transformation>,
-                    TransformationTranslator<?, ? extends Transformation>>
+            Class<? extends Transformation>,
+            TransformationTranslator<?, ? extends Transformation>>
             translatorMap;
 
     static {
@@ -306,16 +306,21 @@ public class StreamGraphGenerator {
     }
 
     public StreamGraph generate() {
+        // 生成StreamGraph对象，传入执行配置和检查点配置
         streamGraph = new StreamGraph(executionConfig, checkpointConfig, savepointRestoreSettings);
         streamGraph.setEnableCheckpointsAfterTasksFinish(
                 configuration.get(
                         ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH));
         shouldExecuteInBatchMode = shouldExecuteInBatchMode();
+        // streamGraph的设置, chaining, timeCharacteristic, stateBackend等配置
         configureStreamGraph(streamGraph);
 
+        // 已经被处理的transformation
         alreadyTransformed = new IdentityHashMap<>();
 
+        // 逐个处理transformation
         for (Transformation<?> transformation : transformations) {
+            // 主要逻辑
             transform(transformation);
         }
 
@@ -333,6 +338,7 @@ public class StreamGraphGenerator {
 
         final StreamGraph builtStreamGraph = streamGraph;
 
+        // 清空中间变量
         alreadyTransformed.clear();
         alreadyTransformed = null;
         streamGraph = null;
@@ -490,7 +496,7 @@ public class StreamGraphGenerator {
                         transformation ->
                                 isUnboundedSource(transformation)
                                         || transformation.getTransitivePredecessors().stream()
-                                                .anyMatch(this::isUnboundedSource));
+                                        .anyMatch(this::isUnboundedSource));
     }
 
     private boolean isUnboundedSource(final Transformation<?> transformation) {
@@ -506,6 +512,7 @@ public class StreamGraphGenerator {
      * delegates to one of the transformation specific methods.
      */
     private Collection<Integer> transform(Transformation<?> transform) {
+        // 检查该transformation是否已被处理，如果已处理直接返回
         if (alreadyTransformed.containsKey(transform)) {
             return alreadyTransformed.get(transform);
         }
@@ -522,6 +529,7 @@ public class StreamGraphGenerator {
             }
         }
 
+        // 忽略，配置SlotSharingGroup相关
         transform
                 .getSlotSharingGroup()
                 .ifPresent(
@@ -536,7 +544,7 @@ public class StreamGraphGenerator {
                                                 return ResourceProfile.fromResourceSpec(
                                                         resourceSpec, MemorySize.ZERO);
                                             } else if (!ResourceProfile.fromResourceSpec(
-                                                            resourceSpec, MemorySize.ZERO)
+                                                    resourceSpec, MemorySize.ZERO)
                                                     .equals(profile)) {
                                                 throw new IllegalArgumentException(
                                                         "The slot sharing group "
@@ -549,9 +557,17 @@ public class StreamGraphGenerator {
                             }
                         });
 
+        // 检查transformation的输出类型，如果是MissingTypeInfo则程序抛出异常
         // call at least once to trigger exceptions about MissingTypeInfo
         transform.getOutputType();
 
+        /**
+         *  转换transform的主要函数存在translatorMap中, 看translatorMap的内容即可, 之前的版本直接是在代码中if判断调用不同的处理函数
+         *  主要的TransformationTranslator, 逻辑在其translateForStreamingInternal方法中:
+         *      OneInputTransformation.class => OneInputTransformationTranslator实现逻辑实际在AbstractOneInputTransformationTranslator类translateInternal方法中
+         *      SourceTransformation.class => SourceTransformationTranslator
+         *      SinkTransformation.class => SinkTransformationTranslator
+         */
         @SuppressWarnings("unchecked")
         final TransformationTranslator<?, Transformation<?>> translator =
                 (TransformationTranslator<?, Transformation<?>>)
@@ -564,6 +580,12 @@ public class StreamGraphGenerator {
             transformedIds = legacyTransform(transform);
         }
 
+        /**
+         * 如果该transformation没有被处理，则加入已处理列表
+         * 处理每个transformation的时候会先处理它的input（可能没有input，也可能有一个或多个），transform方法会递归调用。
+         * 在transform方法执行前后双重检查transformation是否已被处理可以确保在递归调用的情况下不会被重复处理
+         *
+         */
         // need this check because the iterate transformation adds itself before
         // transforming the feedback edges
         if (!alreadyTransformed.containsKey(transform)) {

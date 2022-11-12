@@ -24,6 +24,8 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 
+import org.apache.flink.streaming.api.graph.StreamGraph;
+
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -32,6 +34,26 @@ import static org.junit.Assert.fail;
 /** Test translation of {@link CheckpointingMode}. */
 @SuppressWarnings("serial")
 public class TranslationTest {
+
+    @Test
+    public void testGetStreamGraph() throws Exception {
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.generateSequence(1, 10000000)
+                .map(x -> x.toString())
+                .addSink(
+                        new SinkFunction<String>() {
+                            @Override
+                            public void invoke(String value) {
+                                if(Integer.valueOf(value) < 100){
+                                    System.out.println(value);
+                                }
+                            }
+                        });
+
+        StreamGraph streamGraph = env.getStreamGraph();
+        System.out.println(streamGraph);
+        //env.execute("test");
+    }
 
     @Test
     public void testCheckpointModeTranslation() {
@@ -74,7 +96,11 @@ public class TranslationTest {
                 .addSink(
                         new SinkFunction<Long>() {
                             @Override
-                            public void invoke(Long value) {}
+                            public void invoke(Long value) {
+                                if(value < 100){
+                                    System.out.println(value);
+                                }
+                            }
                         });
 
         return env;

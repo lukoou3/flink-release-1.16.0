@@ -2028,6 +2028,17 @@ public class StreamExecutionEnvironment implements AutoCloseable {
     }
 
     /**
+     * 作业生成的入口: jobName默认是"Flink Streaming Job"
+     * 触发程序执行，会执行所有的的sink操作。
+     * [[getStreamGraph()}]] 构建Stream Graph，比较重要的部分。
+     *      获取流job的StreamGraph，这个操作会清空之前注册的transformations。
+     *      其实就是调用的:getStreamGraphGenerator(transformations).generate()
+     *      {@link org.apache.flink.streaming.api.graph.StreamGraphGenerator#generate()}
+     *
+     * transformations是怎么被添加的？
+     *      map sink等算子都会生成transformation，调用env.addOperator(transformation)方法把transformation添加到transformations
+     *      StreamExecutionEnvironment的addOperator(transformation)
+     *
      * Triggers the program execution. The environment will execute all parts of the program that
      * have resulted in a "sink" operation. Sink operations are for example printing results or
      * forwarding them to a message queue.
@@ -2206,6 +2217,10 @@ public class StreamExecutionEnvironment implements AutoCloseable {
     }
 
     /**
+     * 获取流job的StreamGraph，这个操作会清空之前注册的transformations。
+     * 其实就是调用的:getStreamGraphGenerator(transformations).generate()
+     *  org.apache.flink.streaming.api.graph.StreamGraphGenerator#generate()
+     *
      * Getter of the {@link StreamGraph} of the streaming job. This call clears previously
      * registered {@link Transformation transformations}.
      *
