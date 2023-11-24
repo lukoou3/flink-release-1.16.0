@@ -187,6 +187,7 @@ public class KafkaDynamicTableFactory
 
         final StartupOptions startupOptions = getStartupOptions(tableOptions);
 
+        // 从Map<String, String>获取kafka的properties
         final Properties properties = getKafkaProperties(context.getCatalogTable().getOptions());
 
         // add topic-partition discovery

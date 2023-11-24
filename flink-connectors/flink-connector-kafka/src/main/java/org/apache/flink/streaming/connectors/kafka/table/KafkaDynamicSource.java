@@ -482,6 +482,7 @@ public class KafkaDynamicSource
                                         adjustedPhysicalArity))
                         .toArray();
 
+        // 反序列化的Schema，包含序列化metadata列的逻辑
         return new DynamicKafkaDeserializationSchema(
                 adjustedPhysicalArity,
                 keyDeserialization,
